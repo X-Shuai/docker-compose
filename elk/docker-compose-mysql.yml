@@ -1,0 +1,36 @@
+version: '3.0'
+services:
+  #主数据库
+  master_mysql:
+    image: mysql:5.7
+    restart: always
+    container_name: master_mysql
+    privileged: true
+    ports:
+     - 3308:3306
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      TZ: Asia/Shanghai
+    volumes:
+      - /docker_volume/mysql/master_mysql/data:/var/lib/mysql
+      - /docker_volume/mysql/master_mysql/conf/my.cnf:/etc/mysql/my.cnf
+  #从数据库    
+  slave_mysql:
+    image: mysql:5.7
+    restart: always
+    container_name: slave_mysql
+    privileged: true
+    ports:
+     - 3309:3306
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      TZ: Asia/Shanghai
+    volumes:
+      - /docker_volume/mysql/slave_mysql/data:/var/lib/mysql
+      - /docker_volume/mysql/slave_mysql/conf/my.cnf:/etc/mysql/my.cnf
+# mkdir -p /opt/master_mysql/data
+# mkdir -p /opt/master_mysql/conf
+# mkdir -p /opt/slave_mysql/data
+# mkdir -p /opt/slave_mysql/conf
+
+docker run  --name sharding-proxy  -d -v /root/docker/sharding/conf:/opt/sharding-proxy/conf  -v /root/docker/sharding/lib:/opt/sharding-proxy/lib --env PORT=3308 -p 13308:3308  shardingsphere/sharding-proxy:latest
