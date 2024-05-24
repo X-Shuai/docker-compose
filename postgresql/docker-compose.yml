@@ -1,0 +1,13 @@
+version: "3.3"
+services:
+ postgres:
+  image: postgres:12-alpine
+  container_name: postgres
+  restart: always
+  environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+      SET_CONTAINER_TIMEZONE: true
+      CONTAINER_TIMEZONE: Asia/Shanghai
+  ports:
+    - 5432:5432
