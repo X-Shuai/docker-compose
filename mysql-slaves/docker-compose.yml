@@ -20,9 +20,8 @@ services:
         '--server-id=1',
         '--log-bin=mysql-bin'
     ]
-    networks:
-      mysql_net:
-        ipv4_address: 172.19.0.2
+    networks: 
+      - mysql_net
       
   mysql-slave:
     container_name: mysql-slave 
@@ -48,18 +47,11 @@ services:
         '--server-id=2',
         '--log-bin=mysql-bin'
     ]
-    networks:
-      mysql_net:
-        ipv4_address: 172.19.0.3
+    networks: 
+      - mysql_net
 volumes:
   master-data:
   slave-data: 
 networks:
   mysql_net:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.19.0.0/16
-
-
-
