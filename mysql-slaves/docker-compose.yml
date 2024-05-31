@@ -1,0 +1,65 @@
+version: '3.8'
+services:
+  mysql-master:
+    container_name: mysql-master 
+    image: mysql:5.7.31
+    restart: always
+    ports:
+      - 3340:3306 
+    privileged: true
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: master
+      MYSQL_PASSWORD: master
+    volumes:
+        - master-data:/var/lib/mysql
+    command: [
+        '--character-set-server=utf8mb4',
+        '--collation-server=utf8mb4_general_ci',
+        '--max_connections=3000',
+        '--server-id=1',
+        '--log-bin=mysql-bin'
+    ]
+    networks:
+      mysql_net:
+        ipv4_address: 172.19.0.2
+      
+  mysql-slave:
+    container_name: mysql-slave 
+    image: mysql:5.7.31
+    restart: always
+    ports:
+      - 3341:3306 
+    privileged: true
+    volumes:
+      - slave-data:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: slave
+      MYSQL_PASSWORD: slave
+      MYSQL_MASTER_HOST: mysql-master
+      MYSQL_MASTER_USER: master
+      MYSQL_MASTER_PASSWORD: master
+      MYSQL_REPLICATION_MODE: slave
+    command: [
+        '--character-set-server=utf8mb4',
+        '--collation-server=utf8mb4_general_ci',
+        '--max_connections=3000',
+        '--server-id=2',
+        '--log-bin=mysql-bin'
+    ]
+    networks:
+      mysql_net:
+        ipv4_address: 172.19.0.3
+volumes:
+  master-data:
+  slave-data: 
+networks:
+  mysql_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.19.0.0/16
+
+
+
