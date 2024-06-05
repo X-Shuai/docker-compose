@@ -1,0 +1,13 @@
+version: "3.3"
+services:
+ postgres:
+  image: postgis/postgis:12-3.2
+  container_name: postgis
+  restart: always
+  environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+      SET_CONTAINER_TIMEZONE: true
+      CONTAINER_TIMEZONE: Asia/Shanghai
+  ports:
+    - 54323:5432

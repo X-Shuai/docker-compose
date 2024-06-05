@@ -1,37 +1,69 @@
 version: '3'
+
+networks:
+  elk:
+
 services:
   elasticsearch:
-    image: elasticsearch:7.7.0  #镜像
+    image: elasticsearch:7.14.1  #镜像
     container_name: elk_elasticsearch  #定义容器名称
     restart: always  #开机启动，失败也会一直重启
     environment:
-      - "cluster.name=elasticsearch" #设置集群名称为elasticsearch
-      - "discovery.type=single-node" #以单一节点模式启动
-      - "ES_JAVA_OPTS=-Xms256m -Xmx256m" #设置使用jvm内存大小
+      TZ: Asia/Shanghai
+      LANG: en_US.UTF-8
+      TAKE_FILE_OWNERSHIP: "true"  # 权限
+      discovery.type: single-node
+      ES_JAVA_OPTS: "-Xmx512m -Xms512m"
+      ELASTIC_PASSWORD: "123456" # elastic账号密码
     volumes:
-      - /docker_volume/elk/elasticsearch/plugins:/usr/share/elasticsearch/plugins #插件文件挂载
-      - /docker_volume/elk/elasticsearch/data:/usr/share/elasticsearch/data #数据文件挂载
+      - elasticsearch:/usr/share/elasticsearch
+      # - /docker_volume/elk/elasticsearch/plugins:/usr/share/elasticsearch/plugins #插件文件挂载
+      # - /docker_volume/elk/elasticsearch/data:/usr/share/elasticsearch/data #数据文件挂载
     ports:
       - 9200:9200
+      - 9300:9300
+    networks:
+      - elk
+
   kibana:
-    image: kibana:7.7.0
+    image: kibana:7.14.1 
     container_name: elk_kibana
     restart: always
     depends_on:
       - elasticsearch #kibana在elasticsearch启动之后再启动
-    environment:
-      - ELASTICSEARCH_URL=http://elasticsearch:9200 #设置访问elasticsearch的地址
+    # environment:
+    #   - ELASTICSEARCH_URL=http://elasticsearch:9200 #设置访问elasticsearch的地址
     ports:
-      - 5601:5601
+      - "5601:5601"
+    links:
+      - elasticsearch
+    networks:
+      - elk
+    volumes:
+      - kibana:/usr/share/kibana
+
   logstash:
-    image: logstash:7.7.0
+    image: logstash:7.14.1
     container_name: elk_logstash
     restart: always
-    volumes:
-      - /docker_volume/elk/logstash/logstash-springboot.conf:/usr/share/logstash/pipeline/logstash.conf #挂载logstash的配置文件
+    networks:
+      - elk
     depends_on:
       - elasticsearch #kibana在elasticsearch启动之后再启动
-    links:
-      - elasticsearch:es #可以用es这个域名访问elasticsearch服务
+    environment:
+      LS_JAVA_OPTS: "-Xmx512m -Xms512m"
+    volumes:
+      - logstash:/usr/share/logstash
+    command: logstash -f /usr/share/logstash/config/small-tools       # 指定logstash启动时使用的配置文件 - 指定目录夹（系统会自动读取文件夹下所有配置文件，并在内存中整合）
     ports:
-      - 4560:4560
+      - "9600:9600"
+#      - "10001-10010:10001-10010"
+      - "1218:1218"
+      - "20010:20010"
+      - "20030:20030"
+      - "20040:20040"
+
+volumes:
+  elasticsearch:
+  kibana:
+  logstash:
