@@ -2,13 +2,15 @@ version: '3'
 services:
   mysql:
     image: mysql:5.7  # 原镜像`mysql:5.7`
-    container_name: mysql_3306                                    # 容器名为'mysql_3306'
+    container_name: mysql                                   # 容器名为'mysql_3306'
     restart: unless-stopped                                               # 指定容器退出后的重启策略为始终重启，但是不考虑在Docker守护进程启动时就已经停止了的容器
     volumes:                                                      # 数据卷挂载路径设置,将本机目录映射到容器目录
-      - "./mysql5.7/my.cnf:/etc/mysql/my.cnf"
-      - "./mysql5.7/data:/var/lib/mysql"
-      #      - "./mysql5.7/conf.d:/etc/mysql/conf.d"
-      - "./mysql5.7/log/mysql/error.log:/var/log/mysql/error.log"
+      - mysql:/etc/mysql
+      - mysql_data:/var/lib/mysql
+      # - "./mysql5.7/my.cnf:/etc/mysql/my.cnf"
+      # - "./mysql5.7/data:/var/lib/mysql"
+      # #      - "./mysql5.7/conf.d:/etc/mysql/conf.d"
+      # - "./mysql5.7/log/mysql/error.log:/var/log/mysql/error.log"
     environment:                        # 设置环境变量,相当于docker run命令中的-e
       TZ: Asia/Shanghai
       LANG: en_US.UTF-8
@@ -16,3 +18,6 @@ services:
       MYSQL_DATABASE: root              # 初始化的数据库名称
     ports:                              # 映射端口
       - "3306:3306"
+volumes:
+  mysql:
+  mysql_data:
