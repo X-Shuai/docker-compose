@@ -1,13 +1,29 @@
 version: "3.3"
 services:
  postgres:
-  image: postgis/postgis:12-3.2
+  image: postgis/postgis:latest
   container_name: postgis
   restart: always
   environment:
       POSTGRES_USER: root
       POSTGRES_PASSWORD: root
-      SET_CONTAINER_TIMEZONE: true
+    #  SET_CONTAINER_TIMEZONE: true
       CONTAINER_TIMEZONE: Asia/Shanghai
   ports:
     - 54323:5432
+  volumes:
+    - postgis:/var/lib/postgis
+    - postgres-gis:/var/lib/postgresql
+
+ pgadmin4:
+  image: dpage/pgadmin4
+  ports:
+    - 54320:80
+  environment:
+    PGADMIN_DEFAULT_EMAIL: xs-shuai@qq.com
+    PGADMIN_DEFAULT_PASSWORD: 123456 
+volumes:
+  postgis:
+  postgres-gis:
+
+  
