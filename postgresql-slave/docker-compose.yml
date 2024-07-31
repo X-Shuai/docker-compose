@@ -1,0 +1,46 @@
+version: "3.3"
+services:
+  # 主库
+  master:
+    image: postgis/postgis:12-3.2
+    container_name: master
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      CONTAINER_TIMEZONE: Asia/Shanghai
+    ports:
+      - 54321:5432
+    volumes:
+      - ./master/data:/var/lib/postgresql/data
+    networks:
+      pg-network:
+        ipv4_address: 192.168.0.2
+    extra_hosts:   # 添加主机映射  
+      - "master.local:192.168.0.2"  
+      - "slave.local:192.168.0.3"  
+  # 从库
+  slave:
+    image: postgis/postgis:12-3.2
+    container_name: slave
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      CONTAINER_TIMEZONE: Asia/Shanghai
+    ports:
+      - 54322:5432
+    volumes:
+      - ./slave/data:/var/lib/postgresql/data
+    networks:
+      pg-network:
+        ipv4_address: 192.168.0.3
+    extra_hosts:   # 添加主机映射  
+      - "master.local:192.168.0.2"  
+      - "slave.local:192.168.0.3"  
+networks:  
+  pg-network:  
+    driver: bridge  
+    ipam:  
+      config:  
+        - subnet: 192.168.0.0/24  

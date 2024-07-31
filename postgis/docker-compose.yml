@@ -14,14 +14,6 @@ services:
   volumes:
     - postgis:/var/lib/postgis
     - postgres-gis:/var/lib/postgresql
-
- pgadmin4:
-  image: dpage/pgadmin4
-  ports:
-    - 54320:80
-  environment:
-    PGADMIN_DEFAULT_EMAIL: xs-shuai@qq.com
-    PGADMIN_DEFAULT_PASSWORD: 123456 
 volumes:
   postgis:
   postgres-gis:
