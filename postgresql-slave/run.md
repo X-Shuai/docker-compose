@@ -95,9 +95,115 @@ max_connections = 120                # 大于等于主节点，正式环境应�
 
 
 ## 备份与恢复
-pg_dump
+进行一次全量备份：
+
+```
+pg_basebackup -Ft -Pv -Xf -z -Z5 -p 5432 -D /var/lib/postgresql/archive 
+```
+
+> 1. **`-D, --pgdata=DIRECTORY`**
+>    - 指定备份输出目录。这个目录将包含备份数据。
+> 2. **`-F, --format=FORMAT`**
+>    - 指定输出格式。可以是：
+>      - `p`：纯文件
+>      - `t`：tar（导出为 tar 包）
+> 3. **`-X, --waldir=DIRECTORY`**
+>    - 选择如何处理 WAL 文件。可以是：
+>      - `none`：不归档 WAL 文件
+>      - `fetch`：从主服务器获取 WAL 文件
+>      - `stream`：实时流式传输 WAL 文件
+> 4. **`-U, --username=NAME`**
+>    - 用于连接数据库的用户名。
+> 5. **`-h, --host=HOSTNAME`**
+>    - 指定数据库服务器的主机名或 IP 地址。
+> 6. **`-p, --port=PORT`**
+>    - 指定数据库服务器的端口号（默认为 5432）。
+> 7. **`-v, --verbose`**
+>    - 启用详细输出。
+>
+> ### 高级参数
+>
+> - **`-P, --progress`**
+>   - 显示备份进度信息。
+> - **`--max-rate=RATE`**
+>   - 限制备份的最大传输速率（以字节/秒为单位）。
+> - **`--include-wall`**
+>   - 指定是否包含 WAL 文件（已被其他参数替代，但信息仍有参考价值）。
+> - **`--no-recovery`**
+>   - 会创建一个不包含恢复文件（即 `recovery.conf` 的目录）。 12版:recovery.signal 恢复后删除
+> - **`-T, --tablespace-mapping`**
+>   - 允许为移动的表空间级别创建备份。
+>
+> ### 其他参数
+>
+> - **`--label=LABEL`**
+>   - 指定备份的标签。
+> - **`--no-password`**
+>   - 在不提示输入密码的情况下连接到数据库。
+> - **`--check`**
+>   - 进行检查而不进行实际备份。
+> - **`--help`**
+>   - 显示帮助信息。
+> - **`--version`**
+>   - 显示版本信息。
+>
+> 本身并不支持仅备份单个数据库。
+>
+> 示例：
+>
+> postgres@1652d4ff599c:/$ pg_basebackup -Ft -Pv -Xf -z -Z5 -p 5432 -D /var/lib/postgresql/archive
+> pg_basebackup: initiating base backup, waiting for checkpoint to complete #  正在启动基础备份，并等待当前数据库的检查点（checkpoint）完成。检查点是将内存中的脏页写入磁盘的过程，确保在执行备份时数据库的状态一致
+> pg_basebackup: checkpoint completed # 这表示数据库的检查点已经完成，数据现在是安全的，可以进行备份。
+> pg_basebackup: write-ahead log start point: 0/1E000060 on timeline 3 #这行显示了备份开始时的 WAL（Write-Ahead Log）位置。具体来说 
+>  #0/1E000060 表示 WAL 的起始位置，通常由两个十六进制数字组成的部分表示。
+>  #timeline 3 指的是进行备份时的时间线编号，PostgreSQL 允许时间线管理以处理恢复和分支。
+> 80878/80878 kB (100%), 1/1 tablespace
+> pg_basebackup: write-ahead log end point: 0/1E000138
+> pg_basebackup: syncing data to disk ...
+> pg_basebackup: base backup completed
 
 增量备份：
+
+```shell
+1. 修改配置：
+wal_level = 'replica ' #  WAL 的详细级别。对于需要归档和备份的场景，通常建议设置为 replica 或 logical。
+archive_mode='on'
+archive_command = 'test ! -f /var/lib/postgresql/archive/%f && cp %p /var/lib/postgresql/archive/%f' # 它的值可以是一条shell命令或者一个复杂的shell脚本。在archive_command的shell命令或脚本中可以用“%p”表示将要归档的WAL文件的包含完整路径信息的文件名
+archive_timeout = 60s   #每60秒归档一次  
+max_wal_senders = 10  #允许最多10个WAL发送者  
+wal_keep_segments = 64  # 保留64个WAL文件 
+```
+
+检查是否归档了
+
+全量备份文件还原
+
+```shell
+关闭数据库 /var/lib/postgresql
+tar -xvf  /var/lib/postgresql/archive/back/base.tar.gz -C /var/lib/postgresql/data
+```
+
+//TODO
+
+
+
+
+
+
+
+````shell
+#设置还原
+
+
+
+
+#并创建recovery.signal
+重启后后恢复
+````
+
+
+
+
 
 ```shell
 1. 创建归档目录，archive_wals目录自然用来存放归档了
@@ -111,12 +217,25 @@ pg_dump
 	修改archive_command不需要重启，只需要reload即可
 	如果归档命令未成功执行，它会周期性地重试，在此期间已有的WAL文件将不会被复用，新产生的WAL文件会不断占用pg_wal的磁盘空间，直到pg_wal所在的文件系统被占满后数据库关闭
  5. 备份 可以使用 pg_start_backup 和 pg_stop_backup或者 pg_basebackup命令 
+ 
+ 在postres用户下
 	第一种：pg_start_backup
  	步骤1 执行pg_start_backup开始备份，如下所示：
  	SELECT pg_start_backup('base', false, false); --开始备份
 	select pg_stop_backup(false); --结束备份
-    第二种：
-    pg_basebackup -Ft -Pv -Xf -z -Z5-p 1922 -D /varl/lib/postgresql/data/archive
+    第二种：全量备份 
+postgres@1652d4ff599c:/$ pg_basebackup -Ft -Pv -Xf -z -Z5 -p 5432 -D /var/lib/postgresql/archive
+pg_basebackup: initiating base backup, waiting for checkpoint to complete #  正在启动基础备份，并等待当前数据库的检查点（checkpoint）完成。检查点是将内存中的脏页写入磁盘的过程，确保在执行备份时数据库的状态一致
+pg_basebackup: checkpoint completed # 这表示数据库的检查点已经完成，数据现在是安全的，可以进行备份。
+pg_basebackup: write-ahead log start point: 0/1E000060 on timeline 3 #这行显示了备份开始时的 WAL（Write-Ahead Log）位置。具体来说 
+ #0/1E000060 表示 WAL 的起始位置，通常由两个十六进制数字组成的部分表示。
+ #timeline 3 指的是进行备份时的时间线编号，PostgreSQL 允许时间线管理以处理恢复和分支。
+80878/80878 kB (100%), 1/1 tablespace
+pg_basebackup: write-ahead log end point: 0/1E000138
+pg_basebackup: syncing data to disk ...
+pg_basebackup: base backup completed
+
+
      创建表
      CREATE TABLE tbl
         (
@@ -126,13 +245,13 @@ pg_dump
             created_time TIMESTAMPTZ NOT NULL DEFAULT now()
      );
      添加数据
-   
+  
      SELECT pg_switch_wal(); #手动进行一次WAL切换 由于WAL文件是写满16MB才会进行归档
-    
    
     > \df pg_create_restore_point 查看还原点数据 
     //配置sql
-pg_basebackup -Ft -Pv -Xf -z -Z5 -p 5432 -D /var/lib/postgresql/data/archive/back1
+pg_basebackup -Ft -Pv -Xf -z -Z5 -p 5432 -D /var/lib/postgresql/data/archive/back
+
 ```
 
 
