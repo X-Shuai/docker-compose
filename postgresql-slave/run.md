@@ -183,76 +183,84 @@ wal_keep_segments = 64  # 保留64个WAL文件
 tar -xvf  /var/lib/postgresql/archive/back/base.tar.gz -C /var/lib/postgresql/data
 ```
 
-//TODO
-
-
-
-
-
-
+基于还原点
 
 ````shell
-#设置还原
+SELECT pg_create_restore_point('back1');  # 创建还原点
+删除data文件 修改 postgre.conf 文件 
+restore_command = 'cp /var/lib/postgresql/archive/%f %p'	# 归档文件地址
+recovery_target_name = 'back1' # 设置还原点
 
-
-
-
-#并创建recovery.signal
+#data目录下创建recovery.signal
+select  pg_wal_replay_resume() # 恢复完成后执行继续执行
 重启后后恢复
 ````
 
+//TODO 修改为脚本文件 
 
-
-
+lsn：
 
 ```shell
-1. 创建归档目录，archive_wals目录自然用来存放归档了
-2. wal_level参数可选的值有minimal、replica和logical，从minimal到replica再到logical级别，WAL的级别依次增高，在WAL中包含的信息也越多
-修改为 replica
-3. archive_mode参数可选的值有on、off和always，默认值为off，开启归档需要修改为on，
-4. archive_command参数
-	archive_command参数的默认值是个空字符串，它的值可以是一条shell命令或者一个复杂的shell脚本。在archive_command的shell命令或脚本中可以用“%p”表示将要归档的WAL文件的包含完整路径信息的文件名
-	archive_command = 'cp %p 归档目录/%f'。
-	show archive_command; --查看
-	修改archive_command不需要重启，只需要reload即可
-	如果归档命令未成功执行，它会周期性地重试，在此期间已有的WAL文件将不会被复用，新产生的WAL文件会不断占用pg_wal的磁盘空间，直到pg_wal所在的文件系统被占满后数据库关闭
- 5. 备份 可以使用 pg_start_backup 和 pg_stop_backup或者 pg_basebackup命令 
- 
- 在postres用户下
-	第一种：pg_start_backup
- 	步骤1 执行pg_start_backup开始备份，如下所示：
- 	SELECT pg_start_backup('base', false, false); --开始备份
-	select pg_stop_backup(false); --结束备份
-    第二种：全量备份 
-postgres@1652d4ff599c:/$ pg_basebackup -Ft -Pv -Xf -z -Z5 -p 5432 -D /var/lib/postgresql/archive
-pg_basebackup: initiating base backup, waiting for checkpoint to complete #  正在启动基础备份，并等待当前数据库的检查点（checkpoint）完成。检查点是将内存中的脏页写入磁盘的过程，确保在执行备份时数据库的状态一致
-pg_basebackup: checkpoint completed # 这表示数据库的检查点已经完成，数据现在是安全的，可以进行备份。
-pg_basebackup: write-ahead log start point: 0/1E000060 on timeline 3 #这行显示了备份开始时的 WAL（Write-Ahead Log）位置。具体来说 
- #0/1E000060 表示 WAL 的起始位置，通常由两个十六进制数字组成的部分表示。
- #timeline 3 指的是进行备份时的时间线编号，PostgreSQL 允许时间线管理以处理恢复和分支。
-80878/80878 kB (100%), 1/1 tablespace
-pg_basebackup: write-ahead log end point: 0/1E000138
-pg_basebackup: syncing data to disk ...
-pg_basebackup: base backup completed
+SELECT pg_switch_wal(); --进行日志归档  日志归档 
+删除data文件 使用基本恢复 修改 postgre.conf 文件 
 
+restore_command = 'cp /var/lib/postgresql/archive/%f %p'	# 归档文件地址
+recovery_target_lsn = '0/1D000100'	 
+#data目录下创建recovery.signal
+select  pg_wal_replay_resume() # 恢复完成后执行继续执行
+重启后后恢复
+```
 
-     创建表
-     CREATE TABLE tbl
-        (
-            id SERIAL PRIMARY KEY,
-            ival INT NOT NULL DEFAULT 0,
-            description TEXT,
-            created_time TIMESTAMPTZ NOT NULL DEFAULT now()
-     );
-     添加数据
-  
-     SELECT pg_switch_wal(); #手动进行一次WAL切换 由于WAL文件是写满16MB才会进行归档
-   
-    > \df pg_create_restore_point 查看还原点数据 
-    //配置sql
-pg_basebackup -Ft -Pv -Xf -z -Z5 -p 5432 -D /var/lib/postgresql/data/archive/back
+时间线：
+
+```shell
+按照不同时间加入
+restore_command = 'cp /var/lib/postgresql/archive/%f %p'	# 归档文件地址
+recovery_target_time = '2024-08-05 13:48:59'	# 恢复的时间，具体时间要按照本机时间 之一时区
+
+#data目录下创建recovery.signal
+启动
+select  pg_wal_replay_resume() # 恢复完成后执行继续执行
 
 ```
+
+
+
+
+
+//TODO 修改为脚本文件 
+
+keepalived+postgres 高可用：
+
+```shell
+keepalived c语言编写，vrrp协议
+脑裂：
+软件：
+配置问题导致，
+硬件：
+网线，ip冲突，防火墙阻止心跳
+
+zookeeper也可以实现，需要开发代码
+```
+
+全局配置：
+
+```
+用户  检查脚本
+
+```
+
+VRRPD配置： (切换脚本)
+
+```
+
+```
+
+> 权限： 755 
+>
+>  脚本位置要在 etc/
+
+
 
 
 
