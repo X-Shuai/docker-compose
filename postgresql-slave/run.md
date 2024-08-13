@@ -196,6 +196,18 @@ select  pg_wal_replay_resume() # 恢复完成后执行继续执行
 
 # 高可用
 
+| 场景、原理 | keepalived                                                   | pgpool                                                       | PAF                        | repmgr                   | Patroni        |
+| ---------- | ------------------------------------------------------------ | ------------------------------------------------------------ | -------------------------- | ------------------------ | -------------- |
+| 实现原理   | VIP+监控脚本+执行脚本                                        | watchadog+心跳+vip迁移，数据库中间层                         | 基于 Pacemaker 和 Corosync |                          | etcd 或 Consul |
+| 实现功能   | 虚拟IP迁移，                                                 | 数据库连接池、负载均衡、查询缓存、并行查询和复制管理         |                            | 专注于复制管理和故障转移 |                |
+| 弊端       | 主节点失效时切换 VIP，无法处理数据库层面的故障转移主库<br />`抢占模式`场景选择， | 占用性能，配置复杂，                                         |                            |                          |                |
+| 性能       | 只管理 VIP，而不干涉应用层或数据库层                         | 处理数据库连接和查询的分发，引入一些额外的延迟，但它也能通过负载均衡和连接池来提升整体系统的性能 |                            |                          |                |
+| 场景       | 简单、高效的高可用性解决方案，不涉及复杂的负载均衡或数据库层管理的场景。<br />不能实现读写分离 | 需要复杂的数据库管理功能，如连接池、负载均衡、读写分离、查询缓存的场景 |                            |                          |                |
+|            |                                                              |                                                              |                            |                          |                |
+|            |                                                              |                                                              |                            |                          |                |
+
+
+
 ## Keepalived
 
 安装pg数据库
@@ -732,5 +744,179 @@ kill 7527
 
    
 
-7. 
+   > 配置复杂废弃
 
+   
+
+
+### Patroni
+
+- node1：192.168.59.133
+- node2：192.168.59.134
+- node3：192.168.59.135
+- node4：192.168.59.136 (etcd)
+- vip 读写：192.168.59.139    vip 只读：192.168.59.140
+
+1. 关闭防火墙
+
+   ```shell
+   更新源：
+   yum install -y ntpdate
+   ntpdate time.windows.com && hwclock -w
+   关闭防火墙
+   setenforce 0
+   sed -i.bak "s/SELINUX=enforcing/SELINUX=permissive/g" /etc/selinux/config
+   
+   systemctl disable firewalld.service
+   systemctl stop firewalld.service
+   iptables -F
+   ```
+
+   
+
+2. 在node4 部署etcd
+
+   ```shell
+   yum install -y gcc python-devel epel-release
+   yum install -y etcd
+   配置/etc/etcd/etcd.conf
+   ETCD_DATA_DIR="/var/lib/etcd/default.etcd"
+   ETCD_LISTEN_PEER_URLS="http://192.168.59.136:2380"
+   ETCD_LISTEN_CLIENT_URLS="http://localhost:2379,http://192.168.59.136:2379"
+   ETCD_NAME="etcd0"
+   ETCD_INITIAL_ADVERTISE_PEER_URLS="http://192.168.59.136:2380"
+   ETCD_ADVERTISE_CLIENT_URLS="http://192.168.59.136:2379"
+   ETCD_INITIAL_CLUSTER="etcd0=http://192.168.59.136:2380"
+   ETCD_INITIAL_CLUSTER_TOKEN="cluster1"
+   ETCD_INITIAL_CLUSTER_STATE="new"
+   
+   启动：
+   systemctl start etcd
+   自动启动：
+   systemctl enable etcd
+   ```
+
+3. 安装HA
+
+   ```shell
+   安装PostgreSQL 12
+   
+   yum install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+   
+   yum install -y postgresql12-server postgresql12-contrib
+   安装Patroni
+   
+   yum install -y gcc epel-release
+   yum install -y yum install python3 python3-pip  python3-devel 
+   建议使用
+   sudo yum install -y rh-python38 rh-python38-python-pip rh-python38-python-devel # 安装3.8
+   
+   
+   pip3 install psutil -i http://mirrors.aliyun.com/pypi/simple --trusted-host mirrors.aliyun.com
+   pip3 install --upgrade setuptools -i http://mirrors.aliyun.com/pypi/simple --trusted-host mirrors.aliyun.com
+   pip3 install patroni[etcd]  -i http://mirrors.aliyun.com/pypi/simple --trusted-host mirrors.aliyun.com
+   还需要安装 
+   yum install postgresql-devel  
+   pip3 install psycopg2-binary   -i http://mirrors.aliyun.com/pypi/simple --trusted-host mirrors.aliyun.com
+   
+   创建PostgreSQL数据目录
+   
+   mkdir -p /pgsql/data
+   chown postgres:postgres -R /pgsql
+   chmod -R 700 /pgsql/data
+   
+   
+   配置`/etc/systemd/system/patroni.service`：
+   [Unit]
+   Description=Runners to orchestrate a high-availability PostgreSQL
+   After=syslog.target network.target
+    
+   [Service]
+   Type=simple
+   User=postgres
+   Group=postgres
+   #StandardOutput=syslog
+   ExecStart=/usr/local/bin/patroni /etc/patroni.yml ##位置
+   ExecReload=/bin/kill -s HUP $MAINPID
+   KillMode=process
+   TimeoutSec=30
+   Restart=no
+    
+   [Install]
+   WantedBy=multi-user.target
+   
+   修改配置`/etc/patroni.yml`：
+   scope: pgsql
+   namespace: /service/
+   name: pg1
+   
+   restapi:
+     listen: 0.0.0.0:8008
+     connect_address: 192.168.59.133:8008
+   
+   etcd:
+     host: 192.168.59.136:2379
+   
+   bootstrap:
+     dcs:
+       ttl: 30
+       loop_wait: 10
+       retry_timeout: 11
+       maximum_lag_on_failover: 1048576
+       master_start_timeout: 300
+       synchronous_mode: false
+       postgresql:
+         use_pg_rewind: true
+         use_slots: true
+         parameters:
+           listen_addresses: "0.0.0.0"
+           port: 5432
+           wal_level: logical
+           hot_standby: "on"
+           wal_keep_segments: 100
+           max_wal_senders: 10
+           max_replication_slots: 10
+           wal_log_hints: "on"
+   
+     initdb:
+     - encoding: UTF8
+     - locale: C
+     - lc-ctype: zh_CN.UTF-8
+     - data-checksums
+   
+     pg_hba:
+     - host replication repl 0.0.0.0/0 md5
+     - host all all 0.0.0.0/0 md5
+   
+   postgresql:
+     listen: 0.0.0.0:5432
+     connect_address: 192.168.59.133:5432
+     data_dir: /pgsql/data
+     bin_dir: /usr/pgsql-12/bin
+   
+     authentication:
+       replication:
+         username: repl
+         password: "postgres"
+       superuser:
+         username: postgres
+         password: "postgres"
+   
+     basebackup:
+       max-rate: 100M
+       checkpoint: fast
+   
+   tags:
+       nofailover: false
+       noloadbalance: false
+       clonefrom: false
+       nosync: false
+   启动  
+   systemctl start patroni
+   查看 
+   systemctl status patroni
+   ```
+
+   
+
+4. 
