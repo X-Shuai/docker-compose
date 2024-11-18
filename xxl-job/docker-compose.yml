@@ -16,6 +16,6 @@ services:
                --spring.mail.username=xxx@qq.com
                --spring.mail.from=xxx@qq.com
                --spring.mail.password=xxx
-               --xxl.job.accessToken="
+               --xxl.job.accessToken=xxl_job"
     ports:
       - "9003:8080"
